@@ -82,32 +82,52 @@ func main() {
 
 func consumeKafka(ctx context.Context) {
     r := kafka.NewReader(kafka.ReaderConfig{
+//r умеет подключается к Kafka и читает сообщения из указанного топика
         Brokers: []string{os.Getenv("KAFKA_BROKER")},
+//Сюда передаётся список адресов брокеров Kafka (например "kafka:9092"). Значение берётся из переменных окружения
         Topic:   os.Getenv("KAFKA_TOPIC"),
+//Название топика
         GroupID: "orders-group",
+//Идентификатор группы потребителей (consumer group)
     })
     defer r.Close()
+//defer откладывает выполнение r.Close() до тех пор, пока функция consumeKafka не завершится
     for {
+//Начало бесконечного цикла. Consumer постоянно ждёт новые сообщения и обрабатывает их по мере поступления
         m, err := r.ReadMessage(ctx)
+//ReadMessage — блокирующий вызов: он ждёт и возвращает одно сообщение из Kafka (или ошибку). Результат: m — структура сообщения (обычно содержит 
+//Topic, Partition, Offset, Key и Value). m.Value — это содержимое сообщения в виде []byte (байтовый срез), в который у тебя попадает JSON заказа.
+//Вызов принимает ctx, поэтому если ctx будет отменён, ReadMessage вернёт ошибку — это механизм остановки чтения.
         if err != nil {
             log.Println("kafka read:", err)
             continue
+//Если ReadMessage вернул ошибку (err != nil), мы её логируем и продолжаем цикл (continue), чтобы попытаться прочитать следующее сообщение
         }
         var o Order
+//Объявляем переменную o типа Order
         if err := json.Unmarshal(m.Value, &o); err != nil || o.OrderUID == "" {
+//Парсим JSON (байты m.Value) в Go-структуру o
             log.Println("bad message")
             continue
+//Переходим к следующей итерации цикла — пропускаем последующие шаги для этого (плохого) сообщения
         }
         // сохраняем в БД
         _, err = db.Exec(ctx, `INSERT INTO orders (order_uid, order_json) VALUES ($1,$2)
             ON CONFLICT (order_uid) DO UPDATE SET order_json=$2`, o.OrderUID, string(m.Value))
+//db.Exec возвращает (результат, error). Мы игнорируем результат и проверяем только err
+//Выполняется SQL-запрос через пул db (это *pgxpool.Pool), который вставляет запись в таблицу orders
+//INSERT INTO orders (order_uid, order_json) VALUES ($1,$2) — вставка нового ряда, где $1 = o.OrderUID, $2 = string(m.Value) (то есть JSON в виде строки).
+//ON CONFLICT (order_uid) DO UPDATE SET order_json=$2 — если уже существует запись с таким order_uid (PK), то обновляем поле order_json новым JSONом (UPSERT).
+//string(m.Value) преобразует []byte в string
         if err != nil {
             log.Println("db:", err)
             continue
+////Переходим к следующей итерации цикла — пропускаем последующие шаги для этого (плохого) сообщения
         }
         // кешируем
         mu.Lock()
         cache[o.OrderUID] = o
+//Записываем в кеш: по ключу order_uid сохраняем значение o (структуру Order)
         mu.Unlock()
     }
 }
