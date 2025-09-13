@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Order Lookup</title>
+</head>
+<body>
+<h1>Order Lookup</h1>
+<input id="id" placeholder="order_uid">
+<button onclick="go()">Get</button>
+<pre id="out"></pre>
+<script>
+async function go(){
+const id=document.getElementById('id').value;
+const r=await fetch('/order/'+id);
+document.getElementById('out').innerText = r.ok ? JSON.stringify(await r.json(),null,2) : 'not found';
+}
+</script>
+</body>
+</html>

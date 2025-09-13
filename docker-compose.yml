@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    container_name: order-service-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+
+  kafka:
+    image: bitnami/kafka:3.6
+    container_name: order-service-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+
+  postgres:
+    image: postgres:15
+    container_name: order-service-postgres
+    environment:
+      POSTGRES_USER: orders_user
+      POSTGRES_PASSWORD: orders_pass
+      POSTGRES_DB: orders_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+
+  app:
+    build: ./app
+    container_name: order-service-app
+    ports:
+      - "8081:8081"
+    environment:
+      POSTGRES_DSN: postgres://orders_user:orders_pass@postgres:5432/orders_db?sslmode=disable
+      KAFKA_BROKER: kafka:9092
+      KAFKA_TOPIC: orders
+    depends_on:
+      - kafka
+      - postgres
+
