@@ -21,7 +21,11 @@ type Order struct {
 
 var (
     db    *pgxpool.Pool
+//db — это глобальная переменная, в ней будет храниться подключение к базе данных PostgreSQL.  *pgxpool.Pool — это указатель на пул соединений из библиотеки pgx
+//Когда наше приложение работает, оно не создаёт новое подключение к БД для каждого запроса (это очень дорого и медленно).
+//Вместо этого оно берёт соединения из пула соединений (pool). Пул — это как "бассейн" с готовыми подключениями, чтобы работать быстрее
     cache = make(map[string]Order)
+//Ключ — строка (string) → у нас это OrderUID. Значение — структура Order
     mu    sync.RWMutex
 )
 
@@ -133,15 +137,27 @@ func consumeKafka(ctx context.Context) {
 }
 
 func getOrder(w http.ResponseWriter, r *http.Request) {
+//w http.ResponseWriter - w — объект для отправки ответа клиенту. Через w мы пишем, что вернёт сервер (JSON, HTML, текст и т. д.).
+//r *http.Request — указатель на структуру, содержащую всю информацию о входящем запросе: путь, заголовки, тело, метод (GET/POST) и т.д.
     id := strings.TrimPrefix(r.URL.Path, "/order/")
+//r.URL.Path — строка с путём запроса, например /order/12345.  strings.TrimPrefix(s, prefix) — убирает префикс prefix из начала строки s, если он там есть.
+//В нашем примере: strings.TrimPrefix("/order/12345", "/order/") даст "12345"
     mu.RLock()
     o, ok := cache[id]
+//Проверяем наличие записи в map
     mu.RUnlock()
     if !ok {
         http.Error(w, "not found", 404)
         return
+//Если записи в map нет, возвращаем ошибку
     }
     w.Header().Set("Content-Type", "application/json")
+//Устанавливаем HTTP-заголовок Content-Type в "application/json". Это говорит клиенту, что в теле ответа будет JSON. Заголовки нужно устанавливать до записи тела ответа. 
+//Вызов json.NewEncoder(w).Encode(o) начнёт записывать тело и, если заголовок не установлен, Go выставит заголовок по умолчанию (text/plain или другой).
+//Установка Content-Type помогает браузеру/клиентам правильно интерпретировать ответ
     json.NewEncoder(w).Encode(o)
+//json.NewEncoder(w) создаёт JSON-энкодер, который будет писать JSON прямо в w (в поток ответа).
+//.Encode(o) берёт значение o (в данном коде — структура Order) и кодирует его в JSON, записывая результат в w.
+//Если o — Order{OrderUID: "12345"}, итоговый JSON будет {"order_uid":"12345"} и с новой строкой в конце (Encode добавляет \n)
 }
 
