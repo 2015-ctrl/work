@@ -2,15 +2,24 @@ package main
 
 import (
     "context"
+//context — для передачи контекста (таймауты/отмена) в DB/Kafka операции
     "encoding/json"
+//encoding/json — кодирование/декодирование JSON
     "log"
+//log — простое логирование в stdout/stderr
     "net/http"
+//net/http — HTTP-сервер и обработчики
     "os"
+//os — чтение переменных окружения
     "strings"
+//strings — утилиты для работы со строками
     "sync"
+//sync — синхронизация между горутинами (RWMutex)
 
     "github.com/jackc/pgx/v5/pgxpool"
+//pgxpool — пул подключений к PostgreSQL
     "github.com/segmentio/kafka-go"
+//kafka-go — клиент для чтения сообщений из Kafka
 )
 
 //Определяем структуры заказа, тег на примере 'json:"order_uid"' говорит: "Когда работаешь с JSON, используй ключ order_uid, а не OrderUID"
