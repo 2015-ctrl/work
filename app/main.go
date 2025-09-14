@@ -23,7 +23,6 @@ import (
 )
 
 //Определяем структуры заказа, тег на примере 'json:"order_uid"' говорит: "Когда работаешь с JSON, используй ключ order_uid, а не OrderUID"
-
 type Delivery struct {
     Name    string `json:"name"`
     Phone   string `json:"phone"`
